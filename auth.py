@@ -5,15 +5,15 @@ import base64 # Lưu trữ salt an toàn
 import berserk
 
 # Mã hóa token
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 class LichessAuth :
 	def __init__(self):
 		# Tìm vị trí thư mục config
-		self.config_file = self.config_dir / "token.json"
 		self.config_dir = Path.home() / ".config" / "Lichess-TUI" 
+		self.config_file = self.config_dir / "token.json"
 		self.config_dir.mkdir(parents=True, exist_ok=True)
 
 	def validate_token (self, token) :
@@ -29,14 +29,19 @@ class LichessAuth :
 	def _derive_key(self, passphrase, salt):
 		# Sinh khóa từ passphrase
 		if isinstance(passphrase, str):
-			passphrase_bytes = passphrase.encode
+			passphrase_bytes = passphrase.encode()
 		else :
 			passphrase_bytes = passphrase
 		
+		if isinstance(salt, str):
+			salt_bytes = base64.b64decode(salt.encode('utf-8'))
+		else :
+			salt_bytes = salt
+
 		kdf = PBKDF2HMAC(
 			algorithm=hashes.SHA256(),
 			length=32,
-			salt=salt,
+			salt=salt_bytes,
 			iterations=100000,
 		)
 
@@ -68,3 +73,25 @@ class LichessAuth :
 		
 		else :
 			return "Invalid token"
+	
+	def check_account(self) :
+		if self.config_file.exists() :
+			with open (self.config_file, "r", encoding="utf-8") as f :
+				all_accounts = json.load(f)
+			return list(all_accounts.keys())
+		else :
+			return None
+	
+	def load_token (self, username, passphrase) :
+		if self.config_file.exists() :
+			with open (self.config_file, "r", encoding="utf-8") as f :
+				all_accounts = json.load(f)
+			key = self._derive_key(passphrase, all_accounts[username]["salt"].encode())
+			f = Fernet(key)
+			try :
+				decrypted_bytes = f.decrypt(all_accounts[username]["token"])
+				return decrypted_bytes.decode("utf-8")
+			except InvalidToken:
+				return "Passphare wrong"
+		else :
+			return None
