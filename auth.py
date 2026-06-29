@@ -2,7 +2,7 @@ from pathlib import Path # Hệ thống đường chuẩn XDG
 import json # Lưu trữ dữ liệu dưới dạng json
 import os # Giao tiếp với hệ điều hành
 import base64 # Lưu trữ salt an toàn
-import berserk
+import berserk # Giao tiếp với Lichess
 
 # Mã hóa token
 from cryptography.fernet import Fernet, InvalidToken
@@ -16,7 +16,7 @@ class LichessAuth :
 		self.config_file = self.config_dir / "token.json"
 		self.config_dir.mkdir(parents=True, exist_ok=True)
 
-	def validate_token (self, token) :
+	def validate_token (self, token:str) :
 		# Kiểm tra sự tồn tại của token
 		try :
 			session = berserk.TokenSession(token)
@@ -26,7 +26,7 @@ class LichessAuth :
 		except berserk.exceptions.ResponseError :
 			return False
 	
-	def _derive_key(self, passphrase, salt):
+	def _derive_key(self, passphrase:str, salt:bytes):
 		# Sinh khóa từ passphrase
 		if isinstance(passphrase, str):
 			passphrase_bytes = passphrase.encode()
@@ -49,7 +49,7 @@ class LichessAuth :
 
 		return base64.urlsafe_b64encode(key_goc)
 	
-	def save_token(self, username, passphrase, token) :
+	def save_token(self, username:str, passphrase:str, token:str) :
 		# Lưu token được mã hóa
 		if self.validate_token(token) :
 			salt = os.urandom(16)
@@ -82,7 +82,7 @@ class LichessAuth :
 		else :
 			return None
 	
-	def load_token (self, username, passphrase) :
+	def load_token (self, username:str, passphrase:str) :
 		if self.config_file.exists() :
 			with open (self.config_file, "r", encoding="utf-8") as f :
 				all_accounts = json.load(f)
@@ -95,3 +95,56 @@ class LichessAuth :
 				return "Passphare wrong"
 		else :
 			return None
+
+if __name__ == "__main__" :
+	import sys
+
+	print ("Đang chạy test Auth độc lập!!")
+
+	username = input ("Đặt tên cho tài khoản test: ")
+	token_lichess = input ("Đặt token thử nghiệm (có hoạt động): ")
+	passphrase = input ("Đặt passphrase thử nghiệm: ")
+
+	auth = LichessAuth()
+
+	print("Đang kiểm tra sự tồn tại của token")
+	if auth.validate_token :
+		print("Token có tồn tại!")
+	else :
+		sys.exit("Token không tồn tại")
+
+	print ("Đang kiểm tra check_user.")
+	if auth.check_account() is None :
+		print ("Tính năng check_account ổn!")
+	else :
+		sys.exit("Tính năng chạy không ổn hoặc đã có file trên hệ thống hãy kiểm tra lại!")
+
+	print("Đang kiểm tra tính năng save_token")
+	if auth.save_token(username, passphrase, token_lichess) == "Invalid token" :
+		sys.exit("Kiểm tra lại berserk")
+	else :
+		print("Tính năng save_token ổn!")
+
+	print("Đang kiểm tra tính năng check_account")
+	all_accounts = auth.check_account()
+	if all_accounts is not None :
+		print(f"Tính năng check_account hoạt động ổn, danh sách các tài khoản là : {all_accounts}")
+	else :
+		print("Tính năng check_account hoạt động không ổn hoặc tính năng save_token hoạt động không ổn")
+	
+	print("Đang kiểm tra tính năng load_token")
+	token = auth.load_token(username, passphrase)
+	if token is not None :
+		if token == token_lichess :
+			print("Tính năng load_token hoạt động ổn!")
+		else :
+			print("Tính năng load_token hoạt động không ổn!")
+	else :
+		print("Tính năng save_token hoạt động không ổn")
+	
+	print("Đang dọn dẹp sau khi test!")
+	if auth.config_file.exists() :
+		auth.config_file.unlink()
+		print("Đã xóa thành công!")
+	else :
+		print("File config không tồn tại!")
