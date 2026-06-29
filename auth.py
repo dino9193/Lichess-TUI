@@ -86,13 +86,13 @@ class LichessAuth :
 		if self.config_file.exists() :
 			with open (self.config_file, "r", encoding="utf-8") as f :
 				all_accounts = json.load(f)
-			key = self._derive_key(passphrase, all_accounts[username]["salt"].encode())
+			key = self._derive_key(passphrase, all_accounts[username]["salt"])
 			f = Fernet(key)
 			try :
 				decrypted_bytes = f.decrypt(all_accounts[username]["token"])
 				return decrypted_bytes.decode("utf-8")
 			except InvalidToken:
-				return "Passphare wrong"
+				return "Passphrase wrong"
 		else :
 			return None
 
@@ -108,7 +108,7 @@ if __name__ == "__main__" :
 	auth = LichessAuth()
 
 	print("Đang kiểm tra sự tồn tại của token")
-	if auth.validate_token :
+	if auth.validate_token(token_lichess) :
 		print("Token có tồn tại!")
 	else :
 		sys.exit("Token không tồn tại")
